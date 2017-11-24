@@ -52,6 +52,9 @@ public class GitHubImportPickRepositoriesStep extends AbstractGitHubStep impleme
     @Inject
     @WithAttributes(label = "Repository name pattern", required = true, description = "The regex pattern to match repository names")
     private UISelectMany<GitRepositoryDTO> gitRepositoryPattern;
+
+    @Inject
+    private GitHubFacadeFactory gitHubFacadeFactory;
     private GitHubFacade github;
     private Collection<GitRepositoryDTO> repositoryNames;
     private KubernetesClient kubernetesClient;
@@ -68,7 +71,7 @@ public class GitHubImportPickRepositoriesStep extends AbstractGitHubStep impleme
 
         repositoriesCache = cacheManager.getCache(CacheNames.GITHUB_REPOSITORIES_FOR_ORGANISATION);
 
-        github = createGitHubFacade(builder.getUIContext());
+        github = gitHubFacadeFactory.createGitHubFacade(builder.getUIContext());
 
         Map<Object, Object> attributeMap = builder.getUIContext().getAttributeMap();
         final String gitOrganisation = (String) attributeMap.get(AttributeMapKeys.GIT_ORGANISATION);

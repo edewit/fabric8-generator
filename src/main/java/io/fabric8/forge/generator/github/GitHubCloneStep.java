@@ -24,12 +24,14 @@ import org.jboss.forge.addon.ui.context.UIBuilder;
 
 import java.io.File;
 
-import static io.fabric8.forge.generator.github.AbstractGitHubStep.createGitHubFacade;
+import javax.inject.Inject;
 
 /**
  * Performs a git clone of a repo via github
  */
 public class GitHubCloneStep extends GitCloneStep {
+    @Inject
+    private GitHubFacadeFactory gitHubFacadeFactory;
     private GitHubFacade github;
 
     public GitHubCloneStep() {
@@ -39,7 +41,7 @@ public class GitHubCloneStep extends GitCloneStep {
     public void initializeUI(final UIBuilder builder) throws Exception {
         super.initializeUI(builder);
 
-        this.github = createGitHubFacade(builder.getUIContext(), accountCache);
+        this.github = gitHubFacadeFactory.createGitHubFacade(builder.getUIContext(), accountCache);
     }
 
     @Override

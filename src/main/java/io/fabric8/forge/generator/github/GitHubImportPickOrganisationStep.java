@@ -39,12 +39,15 @@ public class GitHubImportPickOrganisationStep extends AbstractGitHubStep impleme
     @WithAttributes(label = "Organization", required = true, description = "The github organisation to import repositories from")
     private UISelectOne<GitOrganisationDTO> gitOrganisation;
 
+    @Inject
+    private GitHubFacadeFactory gitHubFacadeFactory;
+
     private GitHubFacade github;
 
     public void initializeUI(final UIBuilder builder) throws Exception {
         super.initializeUI(builder);
 
-        this.github = createGitHubFacade(builder.getUIContext());
+        this.github = gitHubFacadeFactory.createGitHubFacade(builder.getUIContext());
 
         // TODO cache this per user every say 30 seconds!
         Collection<GitOrganisationDTO> organisations = new ArrayList<>();
@@ -53,7 +56,7 @@ public class GitHubImportPickOrganisationStep extends AbstractGitHubStep impleme
             organisations = organisationsCache.computeIfAbsent(orgKey, k -> github.loadGitHubOrganisations());
         }
         gitOrganisation.setValueChoices(organisations);
-        gitOrganisation.setItemLabelConverter(organisation -> organisation.getId());
+        gitOrganisation.setItemLabelConverter(GitOrganisationDTO::getId);
         String userName = github.getDetails().getUsername();
         if (Strings.isNotBlank(userName)) {
             for (GitOrganisationDTO organisation : organisations) {
@@ -78,7 +81,7 @@ public class GitHubImportPickOrganisationStep extends AbstractGitHubStep impleme
         String orgName = getOrganisationName(gitOrganisation.getValue());
 
         if (Strings.isNullOrBlank(orgName)) {
-            context.addValidationError(gitOrganisation, "Please select a github organiaztion");
+            context.addValidationError(gitOrganisation, "Please select a github organization");
         }
     }
 

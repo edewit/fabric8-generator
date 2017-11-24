@@ -25,6 +25,7 @@ import io.fabric8.forge.generator.cache.CacheNames;
 import io.fabric8.forge.generator.git.GitClonedRepoDetails;
 import io.fabric8.forge.generator.github.AbstractGitHubStep;
 import io.fabric8.forge.generator.github.GitHubFacade;
+import io.fabric8.forge.generator.github.GitHubFacadeFactory;
 import io.fabric8.forge.generator.kubernetes.CachedSpaces;
 import io.fabric8.forge.generator.kubernetes.KubernetesClientHelper;
 import io.fabric8.forge.generator.kubernetes.SpaceDTO;
@@ -109,6 +110,10 @@ public class ChoosePipelineStep extends AbstractProjectOverviewCommand implement
     private boolean hasJenkinsFile;
     private ArrayList<String> repositoryNames;
     private String organisation;
+
+    @Inject
+    private GitHubFacadeFactory gitHubFacadeFactory;
+
     private GitHubFacade github;
 
     private static Element getGrandParentElement(Element node) {
@@ -142,7 +147,7 @@ public class ChoosePipelineStep extends AbstractProjectOverviewCommand implement
     @Override
     public void initializeUI(UIBuilder builder) throws Exception {
         UIContext uiContext = builder.getUIContext();
-        this.github = AbstractGitHubStep.createGitHubFacade(uiContext, null);
+        this.github = gitHubFacadeFactory.createGitHubFacade(uiContext, null);
         this.kubernetesClient = KubernetesClientHelper.createKubernetesClient(uiContext);
         this.namespacesCache = cacheManager.getCache(CacheNames.USER_NAMESPACES);
         this.spacesCache = cacheManager.getCache(CacheNames.USER_SPACES);

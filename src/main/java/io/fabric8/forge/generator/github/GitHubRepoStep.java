@@ -58,9 +58,11 @@ public class GitHubRepoStep extends AbstractGitHubStep implements UIWizardStep {
     @WithAttributes(label = "Description", description = "The description of the new github repository")
     private UIInput<String> gitRepoDescription;
 
+    @Inject
+    private GitHubFacadeFactory gitHubFacadeFactory;
+
     private GitHubFacade github;
 
-    @Inject
     public GitHubRepoStep() {
     }
 
@@ -79,7 +81,7 @@ public class GitHubRepoStep extends AbstractGitHubStep implements UIWizardStep {
     public void initializeUI(final UIBuilder builder) throws Exception {
         super.initializeUI(builder);
 
-        this.github = createGitHubFacade(builder.getUIContext());
+        this.github = gitHubFacadeFactory.createGitHubFacade(builder.getUIContext());
 
         Collection<GitOrganisationDTO> organisations = new ArrayList<>();
         if (github != null && github.isDetailsValid()) {

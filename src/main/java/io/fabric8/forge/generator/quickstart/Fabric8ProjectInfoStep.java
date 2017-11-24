@@ -21,6 +21,7 @@ import io.fabric8.forge.generator.cache.CacheNames;
 import io.fabric8.forge.generator.git.GitAccount;
 import io.fabric8.forge.generator.git.GitOrganisationDTO;
 import io.fabric8.forge.generator.github.GitHubFacade;
+import io.fabric8.forge.generator.github.GitHubFacadeFactory;
 import io.fabric8.forge.generator.github.GitHubImportParameters;
 import io.fabric8.utils.Strings;
 import io.openshift.launchpad.ui.booster.DeploymentType;
@@ -49,7 +50,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 
 import static io.fabric8.forge.generator.git.AbstractGitRepoStep.getOrganisationName;
-import static io.fabric8.forge.generator.github.AbstractGitHubStep.createGitHubFacade;
 import static io.fabric8.forge.generator.pipeline.AbstractDevToolsCommand.getSelectionFolder;
 
 /**
@@ -81,6 +81,9 @@ public class Fabric8ProjectInfoStep extends ProjectInfoStep {
     // TODO abstract so can work with gogs
     private GitHubFacade github;
 
+    @Inject
+    private GitHubFacadeFactory gitHubFacadeFactory;
+
     @Override
     public UICommandMetadata getMetadata(UIContext context) {
         return Metadata.forCommand(getClass()).name("Fabric8: Project Info")
@@ -94,14 +97,10 @@ public class Fabric8ProjectInfoStep extends ProjectInfoStep {
         String organisationsCacheKey = CacheNames.GITHUB_ORGANISATIONS;
 
         // TODO use different caches for organisations based on the git provider
-        if (false) {
-            // gogs
-            organisationsCacheKey = CacheNames.GOGS_ORGANISATIONS;
-        }
         this.githubAccountCache = cacheManager.getCache(CacheNames.GITHUB_ACCOUNT_FROM_SECRET);
         this.organisationsCache = cacheManager.getCache(organisationsCacheKey);
 
-        this.github = createGitHubFacade(uiContext, githubAccountCache);
+        this.github = gitHubFacadeFactory.createGitHubFacade(uiContext, githubAccountCache);
 
         if (github != null && github.isDetailsValid()) {
             String orgKey = github.getDetails().getUserCacheKey();
