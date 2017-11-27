@@ -23,10 +23,10 @@ import io.fabric8.forge.generator.AttributeMapKeys;
 import io.fabric8.forge.generator.cache.CacheFacade;
 import io.fabric8.forge.generator.cache.CacheNames;
 import io.fabric8.forge.generator.git.GitClonedRepoDetails;
-import io.fabric8.forge.generator.github.AbstractGitHubStep;
 import io.fabric8.forge.generator.github.GitHubFacade;
 import io.fabric8.forge.generator.github.GitHubFacadeFactory;
 import io.fabric8.forge.generator.kubernetes.CachedSpaces;
+import io.fabric8.forge.generator.kubernetes.KubernetesClientFactory;
 import io.fabric8.forge.generator.kubernetes.KubernetesClientHelper;
 import io.fabric8.forge.generator.kubernetes.SpaceDTO;
 import io.fabric8.forge.generator.quickstart.BoosterDTO;
@@ -34,7 +34,6 @@ import io.fabric8.forge.generator.tenant.NamespaceDTO;
 import io.fabric8.forge.generator.tenant.Tenants;
 import io.fabric8.forge.generator.versions.VersionHelper;
 import io.fabric8.kubernetes.api.KubernetesHelper;
-import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.utils.DomHelper;
 import io.fabric8.utils.Files;
 import io.fabric8.utils.Filter;
@@ -104,7 +103,7 @@ public class ChoosePipelineStep extends AbstractProjectOverviewCommand implement
     private JenkinsPipelineLibrary jenkinsPipelineLibrary;
     @Inject
     private CacheFacade cacheManager;
-    private KubernetesClient kubernetesClient;
+    private KubernetesClientHelper kubernetesClientHelper;
     private String namespace = KubernetesHelper.defaultNamespace();
 
     private boolean hasJenkinsFile;
@@ -113,6 +112,9 @@ public class ChoosePipelineStep extends AbstractProjectOverviewCommand implement
 
     @Inject
     private GitHubFacadeFactory gitHubFacadeFactory;
+
+    @Inject
+    private KubernetesClientFactory kubernetesClientFactory;
 
     private GitHubFacade github;
 
@@ -148,10 +150,10 @@ public class ChoosePipelineStep extends AbstractProjectOverviewCommand implement
     public void initializeUI(UIBuilder builder) throws Exception {
         UIContext uiContext = builder.getUIContext();
         this.github = gitHubFacadeFactory.createGitHubFacade(uiContext, null);
-        this.kubernetesClient = KubernetesClientHelper.createKubernetesClient(uiContext);
+        this.kubernetesClientHelper = kubernetesClientFactory.createKubernetesClient(uiContext);
         this.namespacesCache = cacheManager.getCache(CacheNames.USER_NAMESPACES);
         this.spacesCache = cacheManager.getCache(CacheNames.USER_SPACES);
-        final String key = KubernetesClientHelper.getUserCacheKey(kubernetesClient);
+        final String key = kubernetesClientHelper.getUserCacheKey();
         List<NamespaceDTO> namespaces = namespacesCache.computeIfAbsent(key, k -> Tenants.loadNamespaces(getMandatoryAuthHeader(uiContext)));
 
         StopWatch watch = new StopWatch();
@@ -235,10 +237,10 @@ public class ChoosePipelineStep extends AbstractProjectOverviewCommand implement
 
     private List<SpaceDTO> loadCachedSpaces(String key) {
         String namespace = kubernetesSpace.getValue();
-        CachedSpaces cachedSpaces = spacesCache.computeIfAbsent(key, k -> new CachedSpaces(namespace, KubernetesClientHelper.loadSpaces(this.kubernetesClient, namespace)));
+        CachedSpaces cachedSpaces = spacesCache.computeIfAbsent(key, k -> new CachedSpaces(namespace, kubernetesClientHelper.loadSpaces(namespace)));
         if (!cachedSpaces.getNamespace().equals(namespace)) {
             cachedSpaces.setNamespace(namespace);
-            cachedSpaces.setSpaces(KubernetesClientHelper.loadSpaces(this.kubernetesClient, namespace));
+            cachedSpaces.setSpaces(kubernetesClientHelper.loadSpaces(namespace));
         }
         return cachedSpaces.getSpaces();
     }

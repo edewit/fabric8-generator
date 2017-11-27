@@ -19,6 +19,7 @@ package io.fabric8.forge.generator.git;
 import io.fabric8.forge.generator.AttributeMapKeys;
 import io.fabric8.forge.generator.cache.CacheFacade;
 import io.fabric8.forge.generator.cache.CacheNames;
+import io.fabric8.forge.generator.kubernetes.KubernetesClientFactory;
 import io.fabric8.forge.generator.kubernetes.KubernetesClientHelper;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import org.infinispan.Cache;
@@ -52,13 +53,16 @@ public abstract class AbstractPickGitAccountStep extends AbstractGitCommand impl
     @Inject
     private CacheFacade cacheManager;
 
+    @Inject
+    KubernetesClientFactory kubernetesClientFactory;
+
     public void initializeUI(final UIBuilder builder) throws Exception {
         super.initializeUI(builder);
 
         this.gitProviderCache = cacheManager.getCache(CacheNames.GIT_PROVIDERS);
 
-        KubernetesClient kubernetesClient = KubernetesClientHelper.createKubernetesClient(builder.getUIContext());
-        String key = KubernetesClientHelper.getUserCacheKey(kubernetesClient);
+        KubernetesClientHelper kubernetesClientHelper = kubernetesClientFactory.createKubernetesClient(builder.getUIContext());
+        String key = kubernetesClientHelper.getUserCacheKey();
         List<GitProvider> gitServices = gitProviderCache.computeIfAbsent(key, k -> GitProvider.loadGitProviders());
         int size = gitServices.size();
         if (size > 0) {
@@ -66,7 +70,7 @@ public abstract class AbstractPickGitAccountStep extends AbstractGitCommand impl
         }
         if (size > 1) {
             gitProvider.setValueChoices(gitServices);
-            gitProvider.setItemLabelConverter(gitProvider -> gitProvider.getName());
+            gitProvider.setItemLabelConverter(GitProvider::getName);
             builder.add(gitProvider);
         }
     }

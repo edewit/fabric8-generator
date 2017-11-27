@@ -10,12 +10,12 @@ package io.fabric8.forge.generator.github;
 import io.fabric8.forge.generator.AttributeMapKeys;
 import io.fabric8.forge.generator.cache.CacheNames;
 import io.fabric8.forge.generator.git.GitRepositoryDTO;
+import io.fabric8.forge.generator.kubernetes.KubernetesClientFactory;
 import io.fabric8.forge.generator.kubernetes.KubernetesClientHelper;
 import io.fabric8.forge.generator.tenant.NamespaceDTO;
 import io.fabric8.forge.generator.tenant.Tenants;
 import io.fabric8.kubernetes.api.Controller;
 import io.fabric8.kubernetes.api.KubernetesHelper;
-import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.openshift.api.model.BuildConfig;
 import io.fabric8.openshift.client.OpenShiftClient;
 import io.fabric8.utils.Strings;
@@ -55,18 +55,21 @@ public class GitHubImportPickRepositoriesStep extends AbstractGitHubStep impleme
 
     @Inject
     private GitHubFacadeFactory gitHubFacadeFactory;
+
+    @Inject
+    private KubernetesClientFactory kubernetesClientFactory;
+
     private GitHubFacade github;
     private Collection<GitRepositoryDTO> repositoryNames;
-    private KubernetesClient kubernetesClient;
+    private KubernetesClientHelper kubernetesClientHelper;
     protected Cache<String, List<NamespaceDTO>> namespacesCache;
     private List<NamespaceDTO> namespaces;
 
     public void initializeUI(final UIBuilder builder) throws Exception {
         super.initializeUI(builder);
-        UIContext uiContext = builder.getUIContext();
-        kubernetesClient = KubernetesClientHelper.createKubernetesClient(builder.getUIContext());
+        kubernetesClientHelper = kubernetesClientFactory.createKubernetesClient(builder.getUIContext());
         namespacesCache = cacheManager.getCache(CacheNames.USER_NAMESPACES);
-        final String key = KubernetesClientHelper.getUserCacheKey(kubernetesClient);
+        final String key = kubernetesClientHelper.getUserCacheKey();
         namespaces = namespacesCache.computeIfAbsent(key, k -> Tenants.loadNamespaces(getMandatoryAuthHeader(builder.getUIContext())));
 
         repositoriesCache = cacheManager.getCache(CacheNames.GITHUB_REPOSITORIES_FOR_ORGANISATION);
@@ -82,7 +85,7 @@ public class GitHubImportPickRepositoriesStep extends AbstractGitHubStep impleme
         this.repositoryNames = repositoriesCache.computeIfAbsent(orgKey, k -> github.getRepositoriesForOrganisation(gitOrganisation));
 
         gitRepositoryPattern.setValueChoices(repositoryNames);
-        gitRepositoryPattern.setItemLabelConverter(dto -> dto.getId());
+        gitRepositoryPattern.setItemLabelConverter(GitRepositoryDTO::getId);
         builder.add(gitRepositoryPattern);
     }
 
@@ -97,7 +100,7 @@ public class GitHubImportPickRepositoriesStep extends AbstractGitHubStep impleme
             context.addValidationError(gitRepositoryPattern, "You must select a repository to import");
         }
         // Check for repos with already existing bc
-        Controller controller = new Controller(kubernetesClient);
+        Controller controller = new Controller(kubernetesClientHelper.getKubernetesClient());
         OpenShiftClient openShiftClient = controller.getOpenShiftClientOrNull();
         if (openShiftClient == null) {
             context.addValidationError(gitRepositoryPattern, "Could not create OpenShiftClient. Maybe the Kubernetes server version is older than 1.7?");

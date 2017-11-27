@@ -86,75 +86,75 @@ public class GitAccount {
         return new GitAccount(username, token, password, email);
     }
 
-    public static GitAccount loadGitDetailsFromSecret(Cache<String, GitAccount> cache, String secretName, UIContext uiContext) {
-        KubernetesClient kubernetesClient = KubernetesClientHelper.createKubernetesClient(uiContext);
-        final String key = KubernetesClientHelper.getUserCacheKey(kubernetesClient);
-        return cache.computeIfAbsent(key, k -> {
-            String namespace = KubernetesClientHelper.getUserSecretNamespace(kubernetesClient);
-            GitAccount details = loadFromSecret(kubernetesClient, namespace, secretName);
-            LOG.debug("Loaded details: " + details + " for cache key: " + key);
-            return details;
-        });
-    }
-
-    public static GitAccount loadFromSecret(KubernetesClient kubernetesClient, String namespace, String secretName) {
-        LOG.debug("Loading git secret from namespace " + namespace + " with name: " + secretName);
-        KubernetesClientHelper.lazyCreateNamespace(kubernetesClient, namespace);
-        Secret secret = kubernetesClient.secrets().inNamespace(namespace).withName(secretName).get();
-        if (secret != null) {
-            Map<String, String> data = secret.getData();
-            if (data != null) {
-                String username = Base64Helper.base64decode(data.get(GitSecretKeys.USERNAME));
-                String token = Base64Helper.base64decode(data.get(GitSecretKeys.TOKEN));
-                String password = Base64Helper.base64decode(data.get(GitSecretKeys.PASSWORD));
-                String email = Base64Helper.base64decode(data.get(GitSecretKeys.EMAIL));
-                GitAccount gitAccount = new GitAccount(username, token, password, email);
-                LOG.debug("Found: " + gitAccount);
-                return gitAccount;
-            }
-        }
-        return null;
-    }
+//    public static GitAccount loadGitDetailsFromSecret(Cache<String, GitAccount> cache, String secretName, UIContext uiContext) {
+//        KubernetesClient kubernetesClient = KubernetesClientHelper.createKubernetesClient(uiContext);
+//        final String key = KubernetesClientHelper.getUserCacheKey(kubernetesClient);
+//        return cache.computeIfAbsent(key, k -> {
+//            String namespace = KubernetesClientHelper.getUserSecretNamespace(kubernetesClient);
+//            GitAccount details = loadFromSecret(kubernetesClient, namespace, secretName);
+//            LOG.debug("Loaded details: " + details + " for cache key: " + key);
+//            return details;
+//        });
+//    }
+//
+//    public static GitAccount loadFromSecret(KubernetesClient kubernetesClient, String namespace, String secretName) {
+//        LOG.debug("Loading git secret from namespace " + namespace + " with name: " + secretName);
+//        KubernetesClientHelper.lazyCreateNamespace(kubernetesClient, namespace);
+//        Secret secret = kubernetesClient.secrets().inNamespace(namespace).withName(secretName).get();
+//        if (secret != null) {
+//            Map<String, String> data = secret.getData();
+//            if (data != null) {
+//                String username = Base64Helper.base64decode(data.get(GitSecretKeys.USERNAME));
+//                String token = Base64Helper.base64decode(data.get(GitSecretKeys.TOKEN));
+//                String password = Base64Helper.base64decode(data.get(GitSecretKeys.PASSWORD));
+//                String email = Base64Helper.base64decode(data.get(GitSecretKeys.EMAIL));
+//                GitAccount gitAccount = new GitAccount(username, token, password, email);
+//                LOG.debug("Found: " + gitAccount);
+//                return gitAccount;
+//            }
+//        }
+//        return null;
+//    }
 
     public static boolean isValid(GitAccount details) {
         // TODO we should probably test logging in as the user to load their organisations?
         return details != null && details.hasValidData();
     }
 
-    public static Result storeGitDetailsInSecret(KubernetesClient kubernetesClient, String namespace, String secretName, GitAccount details) {
-        boolean update = true;
-        LOG.debug("Storing git account into namespace " + namespace + " with name " + secretName);
-        KubernetesClientHelper.lazyCreateNamespace(kubernetesClient, namespace);
-        Resource<Secret, DoneableSecret> resource = kubernetesClient.secrets().inNamespace(namespace)
-                .withName(secretName);
-        Secret secret = resource.get();
-        if (secret == null) {
-            update = false;
-            secret = new SecretBuilder().withNewMetadata().withName(secretName).endMetadata()
-                    .withData(new HashMap<>()).build();
-        }
-        Map<String, String> data = secret.getData();
-        if (data == null) {
-            data = new HashMap<>();
-        }
-        secret.setData(data);
-
-        data.put(GitSecretKeys.USERNAME, Base64Helper.base64encode(details.getUsername()));
-        data.put(GitSecretKeys.TOKEN, Base64Helper.base64encode(details.getToken()));
-        data.put(GitSecretKeys.PASSWORD, Base64Helper.base64encode(details.getPassword()));
-        data.put(GitSecretKeys.EMAIL, Base64Helper.base64encode(details.getEmail()));
-
-        try {
-            if (update) {
-                resource.replace(secret);
-            } else {
-                resource.create(secret);
-            }
-        } catch (Exception e) {
-            return Results.fail("Failed to store github secret " + secretName + ". " + e, e);
-        }
-        return null;
-    }
+//    public static Result storeGitDetailsInSecret(KubernetesClient kubernetesClient, String namespace, String secretName, GitAccount details) {
+//        boolean update = true;
+//        LOG.debug("Storing git account into namespace " + namespace + " with name " + secretName);
+//        KubernetesClientHelper.lazyCreateNamespace(kubernetesClient, namespace);
+//        Resource<Secret, DoneableSecret> resource = kubernetesClient.secrets().inNamespace(namespace)
+//                .withName(secretName);
+//        Secret secret = resource.get();
+//        if (secret == null) {
+//            update = false;
+//            secret = new SecretBuilder().withNewMetadata().withName(secretName).endMetadata()
+//                    .withData(new HashMap<>()).build();
+//        }
+//        Map<String, String> data = secret.getData();
+//        if (data == null) {
+//            data = new HashMap<>();
+//        }
+//        secret.setData(data);
+//
+//        data.put(GitSecretKeys.USERNAME, Base64Helper.base64encode(details.getUsername()));
+//        data.put(GitSecretKeys.TOKEN, Base64Helper.base64encode(details.getToken()));
+//        data.put(GitSecretKeys.PASSWORD, Base64Helper.base64encode(details.getPassword()));
+//        data.put(GitSecretKeys.EMAIL, Base64Helper.base64encode(details.getEmail()));
+//
+//        try {
+//            if (update) {
+//                resource.replace(secret);
+//            } else {
+//                resource.create(secret);
+//            }
+//        } catch (Exception e) {
+//            return Results.fail("Failed to store github secret " + secretName + ". " + e, e);
+//        }
+//        return null;
+//    }
 
     @Override
     public String toString() {

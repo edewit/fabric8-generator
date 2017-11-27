@@ -4,7 +4,6 @@ import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 
 import io.fabric8.forge.generator.AttributeMapKeys;
-import io.fabric8.forge.generator.Configuration;
 import io.fabric8.forge.generator.cache.CacheFacade;
 import io.fabric8.forge.generator.cache.CacheNames;
 import io.fabric8.forge.generator.git.GitAccount;
@@ -34,17 +33,7 @@ public class GitHubFacadeFactory {
     public GitHubFacade createGitHubFacade(UIContext context, Cache<String, GitAccount> accountCache) {
         GitAccount details = (GitAccount) context.getAttributeMap().get(AttributeMapKeys.GIT_ACCOUNT);
         if (details == null) {
-            if (Configuration.isOnPremise()) {
-                if (accountCache != null) {
-                    details = GitAccount.loadGitDetailsFromSecret(accountCache, GitSecretNames.GITHUB_SECRET_NAME, context);
-                }
-            } else {
-                details = GitAccount.loadFromSaaS(context);
-            }
-        }
-        if (details == null) {
-            LOG.warn("No git details found - assuming local testing mode!");
-            return new GitHubFacade();
+            details = GitAccount.loadFromSaaS(context);
         }
         return new GitHubFacade(details);
     }

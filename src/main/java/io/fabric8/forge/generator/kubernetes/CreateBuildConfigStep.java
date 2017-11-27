@@ -136,10 +136,13 @@ public class CreateBuildConfigStep extends AbstractDevToolsCommand implements UI
     private UIInput<Boolean> addCIWebHooks;
     @Inject
     private CacheFacade cacheManager;
-    private KubernetesClient kubernetesClient;
+    private KubernetesClientHelper kubernetesClientHelper;
     private int retryTriggerBuildCount = 5;
     private boolean useUiidForBotSecret = true;
     private List<NamespaceDTO> namespaces;
+
+    @Inject
+    private KubernetesClientFactory kubernetesClientFactory;
 
     /**
      * Combines the job patterns.
@@ -166,9 +169,9 @@ public class CreateBuildConfigStep extends AbstractDevToolsCommand implements UI
     }
 
     public void initializeUI(final UIBuilder builder) throws Exception {
-        this.kubernetesClient = KubernetesClientHelper.createKubernetesClient(builder.getUIContext());
+        this.kubernetesClientHelper = kubernetesClientFactory.createKubernetesClient(builder.getUIContext());
         this.namespacesCache = cacheManager.getCache(CacheNames.USER_NAMESPACES);
-        final String key = KubernetesClientHelper.getUserCacheKey(kubernetesClient);
+        final String key = kubernetesClientHelper.getUserCacheKey();
         this.namespaces = namespacesCache.computeIfAbsent(key, k -> Tenants.loadNamespaces(getMandatoryAuthHeader(builder.getUIContext())));
 
         jenkinsSpace.setValueChoices(Tenants.jenkinsNamespaces(namespaces));
@@ -237,8 +240,8 @@ public class CreateBuildConfigStep extends AbstractDevToolsCommand implements UI
         if (gitProvider == null) {
             return Results.fail("No attribute: " + AttributeMapKeys.GIT_PROVIDER);
         }
-        KubernetesClient kubernetes = getKubernetesClient();
-        Controller controller = new Controller(kubernetesClient);
+        KubernetesClientHelper kubernetesClientHelper = getKubernetesClientHelper();
+        Controller controller = new Controller(kubernetesClientHelper.getKubernetesClient());
         controller.setNamespace(namespace);
         OpenShiftClient openShiftClient = controller.getOpenShiftClientOrNull();
         if (openShiftClient == null) {
@@ -270,7 +273,7 @@ public class CreateBuildConfigStep extends AbstractDevToolsCommand implements UI
             }
 
             if (addCI && isGitHubOrganisationFolder) {
-                ensureCDGihubSecretExists(kubernetesClient, namespace, gitOwnerName, gitToken);
+                ensureCDGihubSecretExists(kubernetesClientHelper.getKubernetesClient(), namespace, gitOwnerName, gitToken);
             }
             try {
                 BuildConfig oldBC = openShiftClient.buildConfigs().inNamespace(namespace).withName(projectName).get();
@@ -313,7 +316,7 @@ public class CreateBuildConfigStep extends AbstractDevToolsCommand implements UI
                 annotations.put("jenkins.openshift.org/disable-sync-create-on", "jenkins");
             }
 
-            BuildConfig buildConfig = createBuildConfig(kubernetesClient, namespace, projectName, gitUrl, annotations);
+            BuildConfig buildConfig = createBuildConfig(kubernetesClientHelper.getKubernetesClient(), namespace, projectName, gitUrl, annotations);
             String spaceId = null;
             Object spaceValue = attributeMap.get(AttributeMapKeys.SPACE);
             if (spaceValue instanceof SpaceDTO) {
@@ -346,15 +349,15 @@ public class CreateBuildConfigStep extends AbstractDevToolsCommand implements UI
         List<String> warnings = new ArrayList<>();
 
         if (addCI) {
-            String discoveryNamespace = KubernetesClientHelper.getDiscoveryNamespace(kubernetes, jenkinsNamespace);
+            String discoveryNamespace = kubernetesClientHelper.getDiscoveryNamespace(jenkinsNamespace);
             String jenkinsUrl = null;
             try {
-                jenkinsUrl = KubernetesHelper.getServiceURL(kubernetes, ServiceNames.JENKINS, jenkinsNamespace, "https", true);
+                jenkinsUrl = KubernetesHelper.getServiceURL(kubernetesClientHelper.getKubernetesClient(), ServiceNames.JENKINS, jenkinsNamespace, "https", true);
                 discoveryNamespace = jenkinsNamespace;
             } catch (Exception e) {
                 if (!discoveryNamespace.equals(jenkinsNamespace)) {
                     try {
-                        jenkinsUrl = KubernetesHelper.getServiceURL(kubernetes, ServiceNames.JENKINS, discoveryNamespace, "https", true);
+                        jenkinsUrl = KubernetesHelper.getServiceURL(kubernetesClientHelper.getKubernetesClient(), ServiceNames.JENKINS, discoveryNamespace, "https", true);
                     } catch (Exception e2) {
                         throw new BadTenantException("Failed to find Jenkins URL in namespaces " + discoveryNamespace + " and " + jenkinsNamespace + ": " + e, e);
                     }
@@ -369,7 +372,7 @@ public class CreateBuildConfigStep extends AbstractDevToolsCommand implements UI
             if (Strings.isNullOrBlank(botSecret)) {
                 botSecret = "secret101";
             }
-            String oauthToken = kubernetes.getConfiguration().getOauthToken();
+            String oauthToken = kubernetesClientHelper.getKubernetesClient().getConfiguration().getOauthToken();
             String authHeader = "Bearer " + oauthToken;
 
             String webhookUrl = URLUtils.pathJoin(jenkinsUrl, "/github-webhook/");
@@ -403,7 +406,7 @@ public class CreateBuildConfigStep extends AbstractDevToolsCommand implements UI
                     }
                 } else {
                     try {
-                        ensureJenkinsCDOrganisationConfigMapCreated(kubernetes, namespace, gitOwnerName, gitRepoPatternOrName);
+                        ensureJenkinsCDOrganisationConfigMapCreated(kubernetesClientHelper.getKubernetesClient(), namespace, gitOwnerName, gitRepoPatternOrName);
                     } catch (Exception e) {
                         LOG.error("Failed to create Jenkins Organisation ConfigMap: " + e, e);
                         return Results.fail("Failed to create Jenkins Organisation ConfigMap:: " + e, e);
@@ -602,8 +605,8 @@ public class CreateBuildConfigStep extends AbstractDevToolsCommand implements UI
         if (useUiidForBotSecret) {
             return UUID.randomUUID().toString();
         } else {
-            KubernetesClient kubernetes = getKubernetesClient();
-            SecretList list = kubernetes.secrets().inNamespace(discoveryNamespace).list();
+            SecretList list = getKubernetesClientHelper().getKubernetesClient().secrets()
+                    .inNamespace(discoveryNamespace).list();
             if (list != null) {
                 List<Secret> items = list.getItems();
                 if (items != null) {
@@ -1030,8 +1033,8 @@ public class CreateBuildConfigStep extends AbstractDevToolsCommand implements UI
     }
 
 
-    public KubernetesClient getKubernetesClient() {
-        return kubernetesClient;
+    public KubernetesClientHelper getKubernetesClientHelper() {
+        return kubernetesClientHelper;
     }
 
     private Document parseEntityAsXml(String entity) throws ParserConfigurationException, IOException, SAXException {

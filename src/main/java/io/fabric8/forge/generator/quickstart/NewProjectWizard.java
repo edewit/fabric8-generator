@@ -16,7 +16,6 @@
  */
 package io.fabric8.forge.generator.quickstart;
 
-import io.fabric8.forge.generator.Configuration;
 import io.fabric8.forge.generator.git.PickGitAccountForNewProjectStep;
 import io.fabric8.forge.generator.github.GitHubImportRepoStep;
 import io.fabric8.forge.generator.keycloak.ProfileSettings;
@@ -72,17 +71,6 @@ public class NewProjectWizard implements UIWizard {
 
         NavigationResultBuilder builder = NavigationResultBuilder.create();
         builder.add(ChooseBoosterStep.class);
-/*
-        builder.add(ChooseMissionStep.class);
-        builder.add(ChooseRuntimeStep.class);
-*/
-
-        if (Configuration.isOnPremise()) {
-            // lets check if we have gogs / gitlab installed locally and if so let the user pick between those and github
-            builder.add(PickGitAccountForNewProjectStep.class);
-        } else {
-            //builder.add(GitHubRepoStep.class);
-        }
 
         builder.add(Fabric8ProjectInfoStep.class);
         builder.add(ChoosePipelineStep.class);

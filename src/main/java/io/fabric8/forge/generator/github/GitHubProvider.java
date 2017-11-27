@@ -16,7 +16,6 @@
  */
 package io.fabric8.forge.generator.github;
 
-import io.fabric8.forge.generator.Configuration;
 import io.fabric8.forge.generator.git.GitAccount;
 import io.fabric8.forge.generator.git.GitProvider;
 import io.fabric8.forge.generator.git.GitSecretNames;
@@ -30,7 +29,6 @@ import java.io.IOException;
 /**
  */
 public class GitHubProvider extends GitProvider {
-    private Boolean configuredCorrectly;
     private GitAccount details;
     private boolean registerWebHooks = true;
 
@@ -61,20 +59,7 @@ public class GitHubProvider extends GitProvider {
 
     @Override
     public boolean isConfiguredCorrectly() {
-        if (configuredCorrectly == null) {
-            if (Configuration.isOnPremise()) {
-                KubernetesClient kubernetesClient = KubernetesClientHelper
-                        .createKubernetesClientForCurrentCluster();
-                String namespace = KubernetesClientHelper.getUserSecretNamespace(kubernetesClient);
-                String githubSecretName = GitSecretNames.GITHUB_SECRET_NAME;
-                details = GitAccount.loadFromSecret(kubernetesClient, namespace, githubSecretName);
-
-                configuredCorrectly = details != null && details.hasValidData();
-            } else {
-                configuredCorrectly = true;
-            }
-        }
-        return configuredCorrectly;
+        return true;
     }
 
     @Override

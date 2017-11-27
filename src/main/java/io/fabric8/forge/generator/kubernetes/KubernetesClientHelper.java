@@ -16,83 +16,43 @@
  */
 package io.fabric8.forge.generator.kubernetes;
 
-import io.fabric8.forge.generator.Configuration;
 import io.fabric8.forge.generator.EnvironmentVariables;
-import io.fabric8.forge.generator.keycloak.KeycloakEndpoint;
-import io.fabric8.forge.generator.keycloak.TokenHelper;
 import io.fabric8.kubernetes.api.Controller;
 import io.fabric8.kubernetes.api.KubernetesHelper;
 import io.fabric8.kubernetes.api.KubernetesNames;
 import io.fabric8.kubernetes.api.extensions.Configs;
 import io.fabric8.kubernetes.api.model.Namespace;
-import io.fabric8.kubernetes.api.model.NamespaceList;
 import io.fabric8.kubernetes.api.spaces.Space;
 import io.fabric8.kubernetes.api.spaces.Spaces;
-import io.fabric8.kubernetes.client.Config;
-import io.fabric8.kubernetes.client.ConfigBuilder;
-import io.fabric8.kubernetes.client.DefaultKubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.openshift.api.model.Project;
-import io.fabric8.openshift.api.model.ProjectList;
 import io.fabric8.openshift.api.model.User;
 import io.fabric8.openshift.client.OpenShiftAPIGroups;
 import io.fabric8.openshift.client.OpenShiftClient;
 import io.fabric8.utils.Strings;
-import org.jboss.forge.addon.ui.context.UIContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.ws.rs.WebApplicationException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.SortedSet;
-import java.util.TreeSet;
 
 /**
  */
 public class KubernetesClientHelper {
     private static final transient Logger LOG = LoggerFactory.getLogger(KubernetesClientHelper.class);
 
-    public static KubernetesClient createKubernetesClient(UIContext context) {
-        if (!Configuration.isOnPremise()) {
-            return KubernetesClientHelper.createKubernetesClientForSSO(context);
-        }  else {
-            return KubernetesClientHelper.createKubernetesClientForCurrentCluster();
-        }
-    }
+    private final KubernetesClient kubernetesClient;
 
-    /**
-     * Should create a kubernetes client using the current logged in users account
-     *
-     * @return the kubernetes client for the current user
-     */
-    public static KubernetesClient createKubernetesClientForCurrentCluster() {
-        return new DefaultKubernetesClient();
-    }
-
-    /**
-     * Creates the kubernetes client for the SSO signed in user
-     */
-    public static KubernetesClient createKubernetesClientForSSO(UIContext context) {
-        String authHeader = TokenHelper.getMandatoryAuthHeader(context);
-        String openshiftToken = TokenHelper.getMandatoryTokenFor(KeycloakEndpoint.GET_OPENSHIFT_TOKEN, authHeader);
-        String openShiftApiUrl = System.getenv(EnvironmentVariables.OPENSHIFT_API_URL);
-        if (Strings.isNullOrBlank(openShiftApiUrl)) {
-            throw new WebApplicationException("No environment variable defined: "
-                    + EnvironmentVariables.OPENSHIFT_API_URL + " so cannot connect to OpenShift Online!");
-        }
-        Config config = new ConfigBuilder().withMasterUrl(openShiftApiUrl).withOauthToken(openshiftToken).
-                // TODO until we figure out the trust thing lets ignore warnings
-                withTrustCerts(true).
-                build();
-        return new DefaultKubernetesClient(config);
+    protected KubernetesClientHelper(KubernetesClient kubernetesClient) {
+        this.kubernetesClient = kubernetesClient;
     }
 
     /**
      * Returns the current users kubernetes/openshift user name
      */
-    public static String getUserName(KubernetesClient kubernetesClient) {
-        OpenShiftClient oc = getOpenShiftClientOrNull(kubernetesClient);
+    public String getUserName() {
+        OpenShiftClient oc = getOpenShiftClientOrNull();
         if (oc != null) {
             User user = oc.users().withName("~").get();
             if (user == null) {
@@ -111,22 +71,14 @@ public class KubernetesClientHelper {
         return Configs.currentUserName();
     }
 
-    public static OpenShiftClient getOpenShiftClientOrNull(KubernetesClient kubernetesClient) {
+    public OpenShiftClient getOpenShiftClientOrNull() {
         return new Controller(kubernetesClient).getOpenShiftClientOrNull();
-    }
-
-    public static String getUserSecretNamespace(KubernetesClient kubernetesClient) {
-        String userName = getUserName(kubernetesClient);
-        if (Strings.isNullOrBlank(userName)) {
-            throw new IllegalStateException("No kubernetes username could be found!");
-        }
-        return KubernetesNames.convertToKubernetesName("user-secrets-" + userName, false);
     }
 
     /**
      * Returns a unique key specific to the current user request
      */
-    public static String getUserCacheKey(KubernetesClient kubernetesClient) {
+    public String getUserCacheKey() {
         String answer = kubernetesClient.getConfiguration().getOauthToken();
         if (Strings.isNotBlank(answer)) {
             return answer;
@@ -138,7 +90,7 @@ public class KubernetesClientHelper {
     /**
      * Returns the namespace used to discover services like gogs and gitlab when on premise
      */
-    public static String getDiscoveryNamespace(KubernetesClient kubernetesClient, String createInNamespace) {
+    public String getDiscoveryNamespace(String createInNamespace) {
         if (Strings.isNotBlank(createInNamespace)) {
             return createInNamespace;
         }
@@ -153,51 +105,7 @@ public class KubernetesClientHelper {
         return KubernetesHelper.defaultNamespace();
     }
 
-    /**
-     * Validates that the namespace exists and if not tries to create it
-     */
-    public static void lazyCreateNamespace(KubernetesClient kubernetesClient, String namespace) {
-        OpenShiftClient openShiftClient = getOpenShiftClientOrNull(kubernetesClient);
-        if (supportsProjects(openShiftClient)) {
-            Project project = null;
-            try {
-                project = openShiftClient.projects().withName(namespace).get();
-            } catch (Exception e) {
-                LOG.info("Caught exception looking up project " + namespace + ". " + e, e);
-            }
-            if (project != null) {
-                return;
-            }
-            try {
-                LOG.info("Creating project " + namespace);
-                openShiftClient.projectrequests().createNew().withNewMetadata().withName(namespace).endMetadata().done();
-            } catch (Exception e) {
-                throw new IllegalStateException("Failed to create project " + namespace + " due to: " + e, e);
-            }
-        } else {
-            Namespace resource = null;
-            try {
-                resource = kubernetesClient.namespaces().withName(namespace).get();
-            } catch (Exception e) {
-                LOG.info("Caught exception looking up namespace " + namespace + ". " + e, e);
-            }
-            if (resource != null) {
-                return;
-            }
-            try {
-                LOG.info("Creating namespace " + namespace);
-                kubernetesClient.namespaces().createNew().withNewMetadata().withName(namespace).endMetadata().done();
-            } catch (Exception e) {
-                throw new IllegalStateException("Failed to create namespace " + namespace + " due to: " + e, e);
-            }
-        }
-    }
-
-    protected static boolean supportsProjects(OpenShiftClient openshiftClient) {
-        return openshiftClient != null && openshiftClient.supportsOpenShiftAPIGroup(OpenShiftAPIGroups.PROJECT);
-    }
-
-    public static List<SpaceDTO> loadSpaces(KubernetesClient kubernetesClient, String namespace) {
+    public List<SpaceDTO> loadSpaces(String namespace) {
         List<SpaceDTO> answer = new ArrayList<>();
         if (namespace != null) {
             try {
@@ -215,4 +123,7 @@ public class KubernetesClientHelper {
         return answer;
     }
 
+    public KubernetesClient getKubernetesClient() {
+        return kubernetesClient;
+    }
 }

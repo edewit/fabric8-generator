@@ -16,28 +16,23 @@
  */
 package io.fabric8.forge.generator.git;
 
+import javax.inject.Inject;
+
 import io.fabric8.forge.generator.cache.CacheFacade;
 import io.fabric8.forge.generator.cache.CacheNames;
-import io.fabric8.forge.generator.kubernetes.KubernetesClientHelper;
 import io.fabric8.forge.generator.pipeline.AbstractDevToolsCommand;
-import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.utils.Strings;
 import org.infinispan.Cache;
 import org.jboss.forge.addon.ui.context.UIBuilder;
-import org.jboss.forge.addon.ui.context.UIContext;
 import org.jboss.forge.addon.ui.input.UIInput;
-import org.jboss.forge.addon.ui.result.Result;
-
-import javax.inject.Inject;
 
 /**
  */
 public abstract class AbstractGitSetupCredentialsStep extends AbstractDevToolsCommand {
     protected Cache<String, GitAccount> accountCache;
+
     @Inject
     private CacheFacade cacheManager;
-    private KubernetesClient kubernetesClient;
-    private String namespace;
 
     @Override
     public void initializeUI(UIBuilder builder) throws Exception {
@@ -46,21 +41,9 @@ public abstract class AbstractGitSetupCredentialsStep extends AbstractDevToolsCo
         this.accountCache = cacheManager.getCache(CacheNames.GITHUB_ACCOUNT_FROM_SECRET);
     }
 
-    protected GitAccount loadGitAccountFromSecret(UIContext uiContext, String githubSecretName) {
-        kubernetesClient = KubernetesClientHelper.createKubernetesClient(uiContext);
-        namespace = KubernetesClientHelper.getUserSecretNamespace(kubernetesClient);
-        return GitAccount.loadFromSecret(kubernetesClient, namespace, githubSecretName);
-    }
-
     protected void setIfNotBlank(UIInput<String> input, String value) {
         if (Strings.isNotBlank(value)) {
             input.setValue(value);
         }
-    }
-
-    protected Result storeGitAccountInSecret(GitAccount details, String githubSecretName) {
-        final String key = KubernetesClientHelper.getUserCacheKey(kubernetesClient);
-        accountCache.evict(key);
-        return GitAccount.storeGitDetailsInSecret(kubernetesClient, namespace, githubSecretName, details);
     }
 }

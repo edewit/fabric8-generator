@@ -16,11 +16,7 @@
  */
 package io.fabric8.forge.generator.git;
 
-import io.fabric8.forge.generator.Configuration;
 import io.fabric8.forge.generator.github.GitHubProvider;
-import io.fabric8.forge.generator.gogs.GogsProvider;
-import io.fabric8.forge.generator.kubernetes.KubernetesClientHelper;
-import io.fabric8.kubernetes.api.ServiceNames;
 import io.fabric8.kubernetes.api.model.Service;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.project.support.GitUtils;
@@ -52,26 +48,6 @@ public abstract class GitProvider {
         List<GitProvider> answer = new ArrayList<>();
         answer.add(new GitHubProvider());
 
-        if (Configuration.isOnPremise()) {
-            // check for gogs / gitlab providers based on available services in kubernetes/openshift
-            KubernetesClient kubernetesClient = KubernetesClientHelper.createKubernetesClientForCurrentCluster();
-            // TODO should we pass this into the wizard as a parameter?
-            String createInNamespace = null;
-            String namespace = KubernetesClientHelper.getDiscoveryNamespace(kubernetesClient, createInNamespace);
-
-            if (hasService(kubernetesClient, namespace, ServiceNames.GOGS)) {
-                GogsProvider gogsProvider = new GogsProvider();
-                if (gogsProvider.isConfiguredCorrectly()) {
-                    answer.add(gogsProvider);
-                }
-            }
-/*
-            // TODO support gitlab!
-            if (hasService(kubernetesClient, namespace, ServiceNames.GITLAB)) {
-                answer.add(new GitLabProvider());
-            }
-*/
-        }
         LOG.debug("Loaded git providers: " + answer);
         return answer;
     }
@@ -87,13 +63,6 @@ public abstract class GitProvider {
     }
 
     public static GitProvider pickDefaultGitProvider(List<GitProvider> gitProviders) {
-        if (Configuration.isOnPremise()) {
-            for (GitProvider provider : gitProviders) {
-                if (!provider.isGitHub()) {
-                    return provider;
-                }
-            }
-        }
         if (gitProviders.isEmpty()) {
             return null;
         }

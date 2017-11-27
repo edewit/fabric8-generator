@@ -33,12 +33,7 @@ public class CommonSteps {
     public static void addPipelineGitHubAndOpenShiftSteps(NavigationResultBuilder builder) {
         builder.add(ChoosePipelineStep.class);
 
-        if (Configuration.isOnPremise()) {
-            // lets check if we have gogs / gitlab installed locally and if so let the user pick between those and github
-            builder.add(PickGitAccountForNewProjectStep.class);
-        } else {
-            builder.add(GitHubRepoStep.class);
-            builder.add(CreateBuildConfigStep.class);
-        }
+        builder.add(GitHubRepoStep.class);
+        builder.add(CreateBuildConfigStep.class);
     }
 }
